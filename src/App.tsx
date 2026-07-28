@@ -625,12 +625,7 @@ export default function App() {
     const activeRegion = coursePath[currentIndex];
     const nextRegion = coursePath[nextIdx];
 
-    if (activeRegion && nextRegion && activeRegion.neighbors && !activeRegion.neighbors.includes(nextRegion.id)) {
-      // Trigger KTX jump announcement alert!
-      setAlertText(`🛤️ 막다른 길 도착! KTX 연계 고속 환승을 통해 [${nextRegion.name_kr}]지역으로 장거리 점프 운행합니다!`);
-      setIsAlertActive(true);
-      setTimeout(() => setIsAlertActive(false), 4500);
-    }
+    // Dead end alert check removed per user request
 
     if (isCompleted) {
       // Conclude Game!
