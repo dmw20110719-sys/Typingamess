@@ -1,0 +1,6 @@
+{
+  "name": "MapTyping",
+  "description": "A high-fidelity Korean and world geography typing game with interactive maps, real-time speed tracking, multiplayer competition, and local trivia systems.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
