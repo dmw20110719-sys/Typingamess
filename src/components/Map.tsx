@@ -359,9 +359,17 @@ const MapComponent: React.FC<MapProps> = ({
           '青海': 'china_qinghai', '宁夏': 'china_ningxia', '新疆': 'china_xinjiang', '香港': 'china_hongkong',
           '澳门': 'china_macau', '台湾': 'china_taiwan'
         };
-        const pId = String(props.id || "").trim();
+        const pId = String(props.adcode || props.id || "").trim();
         const pNam = String(props.name || props.NAME || "").trim();
-        const targetId = mapID[pId] || mapZH[pNam];
+        let targetId = mapID[pId];
+        if (!targetId && pNam) {
+          for (const zhKey of Object.keys(mapZH)) {
+            if (pNam.includes(zhKey)) {
+              targetId = mapZH[zhKey];
+              break;
+            }
+          }
+        }
         if (targetId) {
           const found = pool.find((r) => r.id === targetId);
           if (found) return found;
