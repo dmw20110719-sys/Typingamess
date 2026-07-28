@@ -1,10 +1,5 @@
 import React from "react";
 import { Instagram, ExternalLink } from "lucide-react";
-import cleanKoreaMapBg from "../assets/images/clean_korea_map_bg_1784937749191.jpg";
-import japanMapBg from "../assets/images/japan_red_map_1784975261763.jpg";
-import usaMapBg from "../assets/images/usa_soft_blue_map_1784975610776.jpg";
-import chinaMapBg from "../assets/images/china_clean_map_bg_1785149923067.jpg";
-import cleanWorldMapBg from "../assets/images/world_pure_gray_map_1784975622332.jpg";
 
 interface FooterProps {
   onOpenAbout: () => void;
@@ -13,35 +8,30 @@ interface FooterProps {
   logoImg?: string;
 }
 
-const SCOPE_CONFIGS: Record<string, { bg: string; gradient: string; border: string; hoverText: string }> = {
+const SCOPE_CONFIGS: Record<string, { bgClass: string; border: string; hoverText: string }> = {
   korea: {
-    bg: cleanKoreaMapBg,
-    gradient: "from-[#dceee9]/92 via-[#e4f3ef]/92 to-[#dceee9]/92 dark:from-slate-900/95 dark:via-slate-900/90 dark:to-slate-900/95",
-    border: "border-emerald-300/80 dark:border-slate-800/80",
+    bgClass: "bg-[#dceee9]/95 dark:bg-slate-900/95 backdrop-blur-md",
+    border: "border-emerald-900/10 dark:border-slate-800/60",
     hoverText: "hover:text-emerald-700 dark:hover:text-emerald-400",
   },
   japan: {
-    bg: japanMapBg,
-    gradient: "from-[#fce8e8]/92 via-[#fdf2f2]/92 to-[#fce8e8]/92 dark:from-slate-900/95 dark:via-slate-900/90 dark:to-slate-900/95",
-    border: "border-rose-300/80 dark:border-slate-800/80",
+    bgClass: "bg-rose-50/95 dark:bg-slate-900/95 backdrop-blur-md",
+    border: "border-rose-900/10 dark:border-slate-800/60",
     hoverText: "hover:text-rose-700 dark:hover:text-rose-400",
   },
   usa: {
-    bg: usaMapBg,
-    gradient: "from-[#e0f2fe]/92 via-[#f0f9ff]/92 to-[#e0f2fe]/92 dark:from-slate-900/95 dark:via-slate-900/90 dark:to-slate-900/95",
-    border: "border-blue-300/80 dark:border-slate-800/80",
+    bgClass: "bg-blue-50/95 dark:bg-slate-900/95 backdrop-blur-md",
+    border: "border-blue-900/10 dark:border-slate-800/60",
     hoverText: "hover:text-blue-700 dark:hover:text-blue-400",
   },
   china: {
-    bg: chinaMapBg,
-    gradient: "from-[#fef3c7]/92 via-[#fffbeb]/92 to-[#fef3c7]/92 dark:from-slate-900/95 dark:via-slate-900/90 dark:to-slate-900/95",
-    border: "border-amber-300/80 dark:border-slate-800/80",
+    bgClass: "bg-amber-50/95 dark:bg-slate-900/95 backdrop-blur-md",
+    border: "border-amber-900/10 dark:border-slate-800/60",
     hoverText: "hover:text-amber-800 dark:hover:text-amber-400",
   },
   world: {
-    bg: cleanWorldMapBg,
-    gradient: "from-[#f1f5f9]/92 via-[#f8fafc]/92 to-[#f1f5f9]/92 dark:from-slate-900/95 dark:via-slate-900/90 dark:to-slate-900/95",
-    border: "border-slate-300/80 dark:border-slate-800/80",
+    bgClass: "bg-slate-100/95 dark:bg-slate-900/95 backdrop-blur-md",
+    border: "border-slate-900/10 dark:border-slate-800/60",
     hoverText: "hover:text-slate-900 dark:hover:text-slate-200",
   },
 };
@@ -50,14 +40,7 @@ export const Footer: React.FC<FooterProps> = ({ onOpenAbout, onOpenGuide, curren
   const scopeConfig = SCOPE_CONFIGS[currentScope] || SCOPE_CONFIGS.korea;
 
   return (
-    <footer className={`w-full relative py-5 px-4 sm:px-10 text-slate-700 dark:text-slate-300 select-none border-t ${scopeConfig.border} mt-auto z-20 overflow-hidden transition-all duration-500`}>
-      {/* Map Background Layer matching the current region mode */}
-      <div
-        className="absolute inset-0 bg-cover bg-center opacity-30 dark:opacity-10 pointer-events-none mix-blend-multiply dark:mix-blend-overlay transition-all duration-500"
-        style={{ backgroundImage: `url(${scopeConfig.bg})` }}
-      />
-      <div className={`absolute inset-0 bg-gradient-to-r ${scopeConfig.gradient} backdrop-blur-sm -z-10 transition-all duration-500`} />
-
+    <footer className={`w-full relative py-4 px-4 sm:px-10 text-slate-700 dark:text-slate-300 select-none border-t ${scopeConfig.border} ${scopeConfig.bgClass} mt-auto z-20 transition-all duration-500`}>
       <div className="max-w-7xl mx-auto flex flex-row items-center justify-between gap-4 relative z-10">
         {/* Left Side: 문의 + Instagram link ONLY */}
         <div className="flex items-center gap-2 text-xs sm:text-sm font-semibold text-slate-800 dark:text-slate-200">
