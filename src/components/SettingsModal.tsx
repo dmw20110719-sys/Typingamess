@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { Volume2, VolumeX, X, Sliders, Check, Music, Keyboard, Navigation } from "lucide-react";
+import { Volume2, VolumeX, X, Sliders, Check, Music, Keyboard, Navigation, Ticket } from "lucide-react";
 import {
   getSoundVolume,
   setSoundVolume,
@@ -17,6 +17,8 @@ interface SettingsModalProps {
   onUpdateAdvanceMode?: (mode: "auto" | "manual") => void;
   vehicleType?: VehicleType;
   onUpdateVehicleType?: (vehicle: VehicleType) => void;
+  startButtonStyle?: "ticket" | "simple";
+  onUpdateStartButtonStyle?: (style: "ticket" | "simple") => void;
   regionLevel?: string;
 }
 
@@ -27,6 +29,8 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
   onUpdateAdvanceMode,
   vehicleType = "subway",
   onUpdateVehicleType,
+  startButtonStyle = "ticket",
+  onUpdateStartButtonStyle,
   regionLevel,
 }) => {
   const [volume, setVolumeState] = useState<number>(0.5);
@@ -188,6 +192,50 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                 );
               })}
             </div>
+          </div>
+
+          {/* SECTION 1.5: START BUTTON STYLE SELECTION */}
+          <div className="bg-slate-50 dark:bg-slate-800/60 p-4 rounded-2xl border border-slate-100 dark:border-slate-800 space-y-3">
+            <div className="flex items-center gap-2.5">
+              <Ticket className={`w-5 h-5 ${themePrimaryText} shrink-0`} />
+              <div>
+                <span className="text-xs font-bold text-slate-800 dark:text-slate-200 block">출발 버튼 스타일 (Start Button UI)</span>
+                <span className="text-[10px] text-slate-500 dark:text-slate-400 block">홈 화면의 출발 버튼 디자인 선택</span>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-2 pt-1">
+              <button
+                type="button"
+                onClick={() => onUpdateStartButtonStyle?.("ticket")}
+                className={`py-2.5 px-3 rounded-xl border text-xs font-bold transition-all flex items-center justify-center gap-1.5 cursor-pointer ${
+                  startButtonStyle === "ticket"
+                    ? `${themePrimaryBg} text-white ${themePrimaryBorder} shadow-sm`
+                    : "bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300 hover:bg-slate-100"
+                }`}
+              >
+                <span>🎫 비행기 탑승권</span>
+                {startButtonStyle === "ticket" && <Check className="w-3.5 h-3.5 shrink-0" />}
+              </button>
+
+              <button
+                type="button"
+                onClick={() => onUpdateStartButtonStyle?.("simple")}
+                className={`py-2.5 px-3 rounded-xl border text-xs font-bold transition-all flex items-center justify-center gap-1.5 cursor-pointer ${
+                  startButtonStyle === "simple"
+                    ? `${themePrimaryBg} text-white ${themePrimaryBorder} shadow-sm`
+                    : "bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300 hover:bg-slate-100"
+                }`}
+              >
+                <span>🔘 기본 버튼</span>
+                {startButtonStyle === "simple" && <Check className="w-3.5 h-3.5 shrink-0" />}
+              </button>
+            </div>
+            <p className="text-[10px] text-slate-400 dark:text-slate-500 text-center font-medium">
+              {startButtonStyle === "ticket"
+                ? "✈️ 실제 여행 탑승권 스타일로 우측 검정 티켓을 뜯어 출발합니다."
+                : "🔘 심플한 단일 컬러 버튼 형태로 출발합니다."}
+            </p>
           </div>
 
           {/* SECTION 2: Next Region Advance / Completion Mode */}

@@ -43,6 +43,7 @@ import { TypingConsole } from "./components/TypingConsole";
 import { QuizConsole } from "./components/QuizConsole";
 import { LeaderboardModal } from "./components/LeaderboardModal";
 import { SettingsModal } from "./components/SettingsModal";
+import { TicketStartButton } from "./components/TicketStartButton";
 import { MapExplorerModal } from "./components/MapExplorerModal";
 import { GuideModal } from "./components/GuideModal";
 import { AboutModal } from "./components/AboutModal";
@@ -74,6 +75,17 @@ export default function App() {
   const handleUpdateVehicleType = (type: VehicleType) => {
     setVehicleType(type);
     localStorage.setItem("typetrip_vehicle", type);
+  };
+
+  // Start Button Style state (ticket vs simple)
+  const [startButtonStyle, setStartButtonStyle] = useState<"ticket" | "simple">(() => {
+    const saved = localStorage.getItem("typetrip_start_button_style") as "ticket" | "simple";
+    return saved === "simple" ? "simple" : "ticket";
+  });
+
+  const handleUpdateStartButtonStyle = (style: "ticket" | "simple") => {
+    setStartButtonStyle(style);
+    localStorage.setItem("typetrip_start_button_style", style);
   };
 
   // Screenshot Theme / Tab / Scope states
@@ -1488,55 +1500,92 @@ export default function App() {
                     </label>
                   </div>
 
-                  {/* Main Clean Start Button: 출발 ➔ */}
+                  {/* Main Clean Start Button: 출발 ➔ or Ticket Boarding Pass */}
                   <div className="pt-2">
-                    <button
-                      type="button"
-                      onClick={() => {
-                        if (isRankingChallenge && travelWay !== "quiz") {
-                          const trimmed = nickname.trim();
-                          if (!trimmed || trimmed === "타자왕") {
-                            setNicknameError(true);
-                            setAlertText("🏆 랭킹 도전을 위해 기본 닉네임('타자왕')이 아닌 나만의 닉네임을 입력해 주세요!");
-                            setIsAlertActive(true);
-                            setTimeout(() => setIsAlertActive(false), 3500);
-                            const inputEl = document.getElementById("nickname-input");
-                            if (inputEl) inputEl.focus();
-                            return;
+                    {startButtonStyle === "ticket" ? (
+                      <TicketStartButton
+                        homeScope={homeScope}
+                        level={settings.level || homeScope}
+                        travelWay={travelWay}
+                        isRankingChallenge={isRankingChallenge}
+                        nickname={nickname}
+                        targetCount={settings.targetCount || 10}
+                        onStart={() => {
+                          if (isRankingChallenge && travelWay !== "quiz") {
+                            setNicknameError(false);
+                            setSettings((prev) => ({ ...prev, targetCount: 16, strictMode: true }));
+                            setActiveMode("single");
+                            handleStartSetup(16);
+                          } else {
+                            setActiveMode(travelWay === "quiz" ? "quiz" : "single");
+                            handleStartSetup();
                           }
-                          setNicknameError(false);
-                          setSettings((prev) => ({ ...prev, targetCount: 16, strictMode: true }));
-                          setActiveMode("single");
-                          handleStartSetup(16);
-                        } else {
-                          setActiveMode(travelWay === "quiz" ? "quiz" : "single");
-                          handleStartSetup();
-                        }
-                      }}
-                      className={`w-full py-3.5 font-black text-base rounded-2xl shadow-xl transition-all flex items-center justify-center gap-2 cursor-pointer group ${
-                        isRankingChallenge && travelWay !== "quiz"
-                          ? "bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-slate-950 shadow-amber-500/20 border border-amber-300/60"
-                          : travelWay === "quiz"
-                          ? homeScope === "japan" || settings.level === "japan"
-                            ? "bg-rose-600 hover:bg-rose-500 text-white"
-                            : homeScope === "usa" || settings.level === "usa"
-                            ? "bg-blue-600 hover:bg-blue-500 text-white"
-                            : homeScope === "china" || settings.level === "china"
-                            ? "bg-amber-500 hover:bg-amber-400 text-slate-950 font-black shadow-amber-500/20"
-                            : homeScope === "world" || settings.level === "world"
-                            ? "bg-slate-600 hover:bg-slate-500 text-white"
-                            : "bg-emerald-600 hover:bg-emerald-500 text-white"
-                          : "bg-slate-900 hover:bg-slate-800 text-white"
-                      }`}
-                    >
-                      <span>
-                        {isRankingChallenge && travelWay !== "quiz"
-                          ? "🏆 랭킹 도전 출발 ➔"
-                          : travelWay === "quiz"
-                          ? "🧩 퀴즈 여행 출발 ➔"
-                          : "출발 ➔"}
-                      </span>
-                    </button>
+                        }}
+                        onValidateRanking={() => {
+                          if (isRankingChallenge && travelWay !== "quiz") {
+                            const trimmed = nickname.trim();
+                            if (!trimmed || trimmed === "타자왕") {
+                              setNicknameError(true);
+                              setAlertText("🏆 랭킹 도전을 위해 기본 닉네임('타자왕')이 아닌 나만의 닉네임을 입력해 주세요!");
+                              setIsAlertActive(true);
+                              setTimeout(() => setIsAlertActive(false), 3500);
+                              const inputEl = document.getElementById("nickname-input");
+                              if (inputEl) inputEl.focus();
+                              return false;
+                            }
+                          }
+                          return true;
+                        }}
+                      />
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          if (isRankingChallenge && travelWay !== "quiz") {
+                            const trimmed = nickname.trim();
+                            if (!trimmed || trimmed === "타자왕") {
+                              setNicknameError(true);
+                              setAlertText("🏆 랭킹 도전을 위해 기본 닉네임('타자왕')이 아닌 나만의 닉네임을 입력해 주세요!");
+                              setIsAlertActive(true);
+                              setTimeout(() => setIsAlertActive(false), 3500);
+                              const inputEl = document.getElementById("nickname-input");
+                              if (inputEl) inputEl.focus();
+                              return;
+                            }
+                            setNicknameError(false);
+                            setSettings((prev) => ({ ...prev, targetCount: 16, strictMode: true }));
+                            setActiveMode("single");
+                            handleStartSetup(16);
+                          } else {
+                            setActiveMode(travelWay === "quiz" ? "quiz" : "single");
+                            handleStartSetup();
+                          }
+                        }}
+                        className={`w-full py-3.5 font-black text-base rounded-2xl shadow-xl transition-all flex items-center justify-center gap-2 cursor-pointer group ${
+                          isRankingChallenge && travelWay !== "quiz"
+                            ? "bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-slate-950 shadow-amber-500/20 border border-amber-300/60"
+                            : travelWay === "quiz"
+                            ? homeScope === "japan" || settings.level === "japan"
+                              ? "bg-rose-600 hover:bg-rose-500 text-white"
+                              : homeScope === "usa" || settings.level === "usa"
+                              ? "bg-blue-600 hover:bg-blue-500 text-white"
+                              : homeScope === "china" || settings.level === "china"
+                              ? "bg-amber-500 hover:bg-amber-400 text-slate-950 font-black shadow-amber-500/20"
+                              : homeScope === "world" || settings.level === "world"
+                              ? "bg-slate-600 hover:bg-slate-500 text-white"
+                              : "bg-emerald-600 hover:bg-emerald-500 text-white"
+                            : "bg-slate-900 hover:bg-slate-800 text-white"
+                        }`}
+                      >
+                        <span>
+                          {isRankingChallenge && travelWay !== "quiz"
+                            ? "🏆 랭킹 도전 출발 ➔"
+                            : travelWay === "quiz"
+                            ? "🧩 퀴즈 여행 출발 ➔"
+                            : "출발 ➔"}
+                        </span>
+                      </button>
+                    )}
                   </div>
                 </div>
               )}
@@ -2554,7 +2603,7 @@ export default function App() {
         defaultMode={settings.level}
       />
 
-      {/* 6. SETTINGS MODAL (Sound & Volume & Vehicle controls) */}
+      {/* 6. SETTINGS MODAL (Sound & Volume & Vehicle & Button Style controls) */}
       <SettingsModal
         isOpen={showSettingsModal}
         onClose={() => setShowSettingsModal(false)}
@@ -2562,6 +2611,8 @@ export default function App() {
         onUpdateAdvanceMode={(mode) => setSettings((prev) => ({ ...prev, advanceMode: mode }))}
         vehicleType={vehicleType}
         onUpdateVehicleType={handleUpdateVehicleType}
+        startButtonStyle={startButtonStyle}
+        onUpdateStartButtonStyle={handleUpdateStartButtonStyle}
         regionLevel={settings.level || homeScope}
       />
 

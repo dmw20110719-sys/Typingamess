@@ -153,3 +153,52 @@ export function initAudio() {
     console.warn("initAudio failed:", e);
   }
 }
+
+export function playTicketTearSound() {
+  if (!soundEnabled || soundVolume <= 0) return;
+  try {
+    const ctx = getAudioContext();
+    const now = ctx.currentTime;
+    // White noise burst for paper tear effect
+    const bufferSize = Math.floor(ctx.sampleRate * 0.15);
+    const buffer = ctx.createBuffer(1, bufferSize, ctx.sampleRate);
+    const output = buffer.getChannelData(0);
+    for (let i = 0; i < bufferSize; i++) {
+      output[i] = Math.random() * 2 - 1;
+    }
+
+    const whiteNoise = ctx.createBufferSource();
+    whiteNoise.buffer = buffer;
+
+    const filter = ctx.createBiquadFilter();
+    filter.type = "bandpass";
+    filter.frequency.setValueAtTime(1400, now);
+    filter.frequency.exponentialRampToValueAtTime(350, now + 0.14);
+    filter.Q.value = 2.5;
+
+    const gain = ctx.createGain();
+    gain.gain.setValueAtTime(0.25 * soundVolume, now);
+    gain.gain.exponentialRampToValueAtTime(0.001, now + 0.14);
+
+    whiteNoise.connect(filter);
+    filter.connect(gain);
+    gain.connect(ctx.destination);
+
+    whiteNoise.start(now);
+
+    // Chime sweep on tear
+    const osc = ctx.createOscillator();
+    const oscGain = ctx.createGain();
+    osc.type = "sine";
+    osc.frequency.setValueAtTime(650, now + 0.03);
+    osc.frequency.exponentialRampToValueAtTime(1100, now + 0.14);
+    oscGain.gain.setValueAtTime(0.08 * soundVolume, now + 0.03);
+    oscGain.gain.exponentialRampToValueAtTime(0.001, now + 0.18);
+    osc.connect(oscGain);
+    oscGain.connect(ctx.destination);
+    osc.start(now + 0.03);
+    osc.stop(now + 0.18);
+  } catch (e) {
+    console.warn("Audio play failed:", e);
+  }
+}
