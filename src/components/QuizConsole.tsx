@@ -27,11 +27,10 @@ function getChosungHint(str: string): string {
 
 function checkQuizAnswer(input: string, region: Region | null): boolean {
   if (!input || !region) return false;
-  const rawInput = input.trim().toLowerCase().replace(/\s+/g, "");
-  const targetKr = region.name_kr ? region.name_kr.trim().toLowerCase().replace(/\s+/g, "") : "";
-  const targetEn = region.name_en ? region.name_en.trim().toLowerCase().replace(/\s+/g, "") : "";
+  const rawInput = input.trim().toLowerCase().replace(/[\s\.]+/g, "");
+  const targetKr = region.name_kr ? region.name_kr.trim().toLowerCase().replace(/[\s\.]+/g, "") : "";
+  const targetEn = region.name_en ? region.name_en.trim().toLowerCase().replace(/[\s\.]+/g, "") : "";
 
-  // Require STRICT EXACT full match only with Korean name or English name (e.g. "서울특별시" or "seoul")
   return (targetKr !== "" && rawInput === targetKr) || (targetEn !== "" && rawInput === targetEn);
 }
 

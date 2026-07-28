@@ -55,8 +55,8 @@ const MapComponent: React.FC<MapProps> = ({
   }>({ geojson: null, polylines: null, markers: null });
 
   const geoJsonDataRef = useRef<any>(null);
+  const geoJsonLayerRef = useRef<L.GeoJSON | null>(null);
   const loadedLevelRef = useRef<string | null>(null);
-  const lastDrawnStateRef = useRef<string>("");
   const prevVehiclePosRef = useRef<{ lat: number; lng: number } | null>(null);
   const animFrameRef = useRef<number | null>(null);
 
@@ -248,255 +248,111 @@ const MapComponent: React.FC<MapProps> = ({
     };
   }, [activeRegion, visitedRegions, regions, showSimple]);
 
-  // 3. Render stations, connection tracks, and GeoJSON region fills dynamically
-  useEffect(() => {
-    const map = mapRef.current;
-    const geojsonGroup = layersRef.current.geojson;
-    const markersGroup = layersRef.current.markers;
-    const polylinesGroup = layersRef.current.polylines;
+  // Helper functions for GeoJSON feature identification and styling
+  const getFeatureRegionId = (feature: any) => {
+    if (!feature || !feature.properties) return "";
+    const props = feature.properties;
+    const rawId =
+      props.region_id ||
+      props["ISO3166-1-Alpha-2"] ||
+      props.ISO_A2 ||
+      props.iso_a2 ||
+      props.ADM0_A3 ||
+      props.iso_a3 ||
+      feature.id ||
+      "";
+    return String(rawId).toLowerCase();
+  };
 
-    if (!map || !geojsonGroup || !markersGroup || !polylinesGroup) return;
+  const getRegionForFeature = (feature: any, currentLevel: string): Region | undefined => {
+    if (!feature || !feature.properties) return undefined;
+    const props = feature.properties;
 
-    // Clear previous drawings
-    markersGroup.clearLayers();
-    polylinesGroup.clearLayers();
+    const isJapanMode = currentLevel === "japan";
+    const isUsaMode = currentLevel === "usa";
+    const isChinaMode = currentLevel === "china";
+    const isWorldMode = currentLevel === "world";
 
-    // -- A. Render GeoJSON Region Polygons (Passed/Visited Regions Colored Green or Gray) --
-    const currentLevel = regionLevel || (regions && regions.length > 0 ? regions[0]?.level : activeRegion?.level) || "sido";
-    if (loadedLevelRef.current !== currentLevel) {
-      prevVehiclePosRef.current = null;
+    if (isJapanMode) {
+      const pool = JAPAN_LIST;
+      const pNam = String(props.nam || props.name || props.NAME || props.NAME_LONG || "").toLowerCase().trim();
+      const pJa = String(props.nam_ja || "").trim();
+
+      const found = pool.find((r) => {
+        const en = r.name_en.toLowerCase().trim();
+        const kr = r.name_kr.toLowerCase().trim();
+        if (pNam && (pNam.includes(en) || en.includes(pNam.replace(/\s+/g, "")) || pNam.replace(/\s+/g, "").includes(en))) return true;
+        if (pJa && (pJa.includes(kr) || kr.includes(pJa))) return true;
+        return false;
+      });
+      if (found) return found;
     }
-    const visitedIds = new Set(visitedRegions.map((r) => r.id.toLowerCase()));
-    const activeId = activeRegion?.id?.toLowerCase();
 
-    const isJapanMode =
-      regionLevel === "japan" ||
-      activeRegion?.level === "japan" ||
-      (regions && regions.length > 0 && regions[0]?.level === "japan") ||
-      currentLevel === "japan";
-
-    const isUsaMode =
-      regionLevel === "usa" ||
-      activeRegion?.level === "usa" ||
-      (regions && regions.length > 0 && regions[0]?.level === "usa") ||
-      currentLevel === "usa";
-
-    const isChinaMode =
-      regionLevel === "china" ||
-      activeRegion?.level === "china" ||
-      (regions && regions.length > 0 && regions[0]?.level === "china") ||
-      currentLevel === "china";
-
-    const isWorldMode =
-      regionLevel === "world" ||
-      activeRegion?.level === "world" ||
-      (regions && regions.length > 0 && regions[0]?.level === "world") ||
-      currentLevel === "world";
-
-    const getFeatureRegionId = (feature: any) => {
-      if (!feature || !feature.properties) return "";
-      const props = feature.properties;
-      const rawId =
-        props.region_id ||
-        props["ISO3166-1-Alpha-2"] ||
-        props.ISO_A2 ||
-        props.iso_a2 ||
-        props.ADM0_A3 ||
-        props.iso_a3 ||
-        feature.id ||
-        "";
-      return String(rawId).toLowerCase();
-    };
-
-    const getRegionForFeature = (feature: any): Region | undefined => {
-      if (!feature || !feature.properties) return undefined;
-      const props = feature.properties;
-
-      if (isJapanMode) {
-        const pool = JAPAN_LIST;
-        const pNam = String(props.nam || props.name || props.NAME || props.NAME_LONG || "").toLowerCase().trim();
-        const pJa = String(props.nam_ja || "").trim();
-
+    if (isUsaMode) {
+      const pool = USA_LIST;
+      const stateName = String(props.name || props.NAME || props.state_name || props.STATE_NAME || props.postal || "").toLowerCase().trim();
+      if (stateName) {
         const found = pool.find((r) => {
           const en = r.name_en.toLowerCase().trim();
           const kr = r.name_kr.toLowerCase().trim();
-          if (pNam && (pNam.includes(en) || en.includes(pNam.replace(/\s+/g, "")) || pNam.replace(/\s+/g, "").includes(en))) return true;
-          if (pJa && (pJa.includes(kr) || kr.includes(pJa))) return true;
+          if (en === stateName || kr === stateName || stateName.includes(en) || en.includes(stateName)) return true;
+          if (stateName === "district of columbia" && r.id === "us_washington_dc") return true;
+          if (stateName === "washington" && r.id === "us_washington") return true;
           return false;
         });
         if (found) return found;
       }
+    }
 
-      if (isUsaMode) {
-        const pool = USA_LIST;
-        const stateName = String(props.name || props.NAME || props.state_name || props.STATE_NAME || props.postal || "").toLowerCase().trim();
-        if (stateName) {
-          const found = pool.find((r) => {
-            const en = r.name_en.toLowerCase().trim();
-            const kr = r.name_kr.toLowerCase().trim();
-            if (en === stateName || kr === stateName || stateName.includes(en) || en.includes(stateName)) return true;
-            if (stateName === "district of columbia" && r.id === "us_washington_dc") return true;
-            if (stateName === "washington" && r.id === "us_washington") return true;
-            return false;
-          });
-          if (found) return found;
-        }
-      }
-
-      if (isChinaMode) {
-        const pool = CHINA_LIST;
-        const mapID: Record<string, string> = {
-          '110000': 'china_beijing', '120000': 'china_tianjin', '310000': 'china_shanghai', '500000': 'china_chongqing',
-          '130000': 'china_hebei', '140000': 'china_shanxi', '150000': 'china_inner_mongolia', '210000': 'china_liaoning',
-          '220000': 'china_jilin', '230000': 'china_heilongjiang', '320000': 'china_jiangsu', '330000': 'china_zhejiang',
-          '340000': 'china_anhui', '350000': 'china_fujian', '360000': 'china_jiangxi', '370000': 'china_shandong',
-          '410000': 'china_henan', '420000': 'china_hubei', '430000': 'china_hunan', '440000': 'china_guangdong',
-          '450000': 'china_guangxi', '460000': 'china_hainan', '510000': 'china_sichuan', '520000': 'china_guizhou',
-          '530000': 'china_yunnan', '540000': 'china_tibet', '610000': 'china_shaanxi', '620000': 'china_gansu',
-          '630000': 'china_qinghai', '640000': 'china_ningxia', '650000': 'china_xinjiang', '810000': 'china_hongkong',
-          '820000': 'china_macau', '710000': 'china_taiwan'
-        };
-        const mapZH: Record<string, string> = {
-          '北京': 'china_beijing', '天津': 'china_tianjin', '上海': 'china_shanghai', '重庆': 'china_chongqing',
-          '河北': 'china_hebei', '山西': 'china_shanxi', '内蒙古': 'china_inner_mongolia', '辽宁': 'china_liaoning',
-          '吉林': 'china_jilin', '黑龙江': 'china_heilongjiang', '江苏': 'china_jiangsu', '浙江': 'china_zhejiang',
-          '安徽': 'china_anhui', '福建': 'china_fujian', '江西': 'china_jiangxi', '山东': 'china_shandong',
-          '河南': 'china_henan', '湖北': 'china_hubei', '湖南': 'china_hunan', '广东': 'china_guangdong',
-          '广西': 'china_guangxi', '海南': 'china_hainan', '四川': 'china_sichuan', '贵州': 'china_guizhou',
-          '云南': 'china_yunnan', '西藏': 'china_tibet', '陕西': 'china_shaanxi', '甘肃': 'china_gansu',
-          '青海': 'china_qinghai', '宁夏': 'china_ningxia', '新疆': 'china_xinjiang', '香港': 'china_hongkong',
-          '澳门': 'china_macau', '台湾': 'china_taiwan'
-        };
-        const pId = String(props.adcode || props.id || "").trim();
-        const pNam = String(props.name || props.NAME || "").trim();
-        let targetId = mapID[pId];
-        if (!targetId && pNam) {
-          for (const zhKey of Object.keys(mapZH)) {
-            if (pNam.includes(zhKey)) {
-              targetId = mapZH[zhKey];
-              break;
-            }
+    if (isChinaMode) {
+      const pool = CHINA_LIST;
+      const mapID: Record<string, string> = {
+        '110000': 'china_beijing', '120000': 'china_tianjin', '310000': 'china_shanghai', '500000': 'china_chongqing',
+        '130000': 'china_hebei', '140000': 'china_shanxi', '150000': 'china_inner_mongolia', '210000': 'china_liaoning',
+        '220000': 'china_jilin', '230000': 'china_heilongjiang', '320000': 'china_jiangsu', '330000': 'china_zhejiang',
+        '340000': 'china_anhui', '350000': 'china_fujian', '360000': 'china_jiangxi', '370000': 'china_shandong',
+        '410000': 'china_henan', '420000': 'china_hubei', '430000': 'china_hunan', '440000': 'china_guangdong',
+        '450000': 'china_guangxi', '460000': 'china_hainan', '510000': 'china_sichuan', '520000': 'china_guizhou',
+        '530000': 'china_yunnan', '540000': 'china_tibet', '610000': 'china_shaanxi', '620000': 'china_gansu',
+        '630000': 'china_qinghai', '640000': 'china_ningxia', '650000': 'china_xinjiang', '810000': 'china_hongkong',
+        '820000': 'china_macau', '710000': 'china_taiwan'
+      };
+      const mapZH: Record<string, string> = {
+        '北京': 'china_beijing', '天津': 'china_tianjin', '上海': 'china_shanghai', '重庆': 'china_chongqing',
+        '河北': 'china_hebei', '山西': 'china_shanxi', '内蒙古': 'china_inner_mongolia', '辽宁': 'china_liaoning',
+        '吉林': 'china_jilin', '黑龙江': 'china_heilongjiang', '江苏': 'china_jiangsu', '浙江': 'china_zhejiang',
+        '安徽': 'china_anhui', '福建': 'china_fujian', '江西': 'china_jiangxi', '山东': 'china_shandong',
+        '河南': 'china_henan', '湖北': 'china_hubei', '湖南': 'china_hunan', '广东': 'china_guangdong',
+        '广西': 'china_guangxi', '海南': 'china_hainan', '四川': 'china_sichuan', '贵州': 'china_guizhou',
+        '云南': 'china_yunnan', '西藏': 'china_tibet', '陕西': 'china_shaanxi', '甘肃': 'china_gansu',
+        '青海': 'china_qinghai', '宁夏': 'china_ningxia', '신강': 'china_xinjiang', '香港': 'china_hongkong',
+        '澳门': 'china_macau', '台湾': 'china_taiwan'
+      };
+      const pId = String(props.adcode || props.id || "").trim();
+      const pNam = String(props.name || props.NAME || "").trim();
+      let targetId = mapID[pId];
+      if (!targetId && pNam) {
+        for (const zhKey of Object.keys(mapZH)) {
+          if (pNam.includes(zhKey)) {
+            targetId = mapZH[zhKey];
+            break;
           }
         }
-        if (targetId) {
-          const found = pool.find((r) => r.id === targetId);
-          if (found) return found;
-        }
-        const foundText = pool.find((r) => {
-          const en = r.name_en.toLowerCase();
-          const kr = r.name_kr;
-          return pNam.includes(kr) || kr.includes(pNam) || pNam.toLowerCase().includes(en);
-        });
-        if (foundText) return foundText;
       }
-
-      if (isWorldMode) {
-        const pool = WORLD_COUNTRIES;
-
-        // 1. Direct ISO2 match
-        const iso2 = String(
-          props.region_id ||
-          props["ISO3166-1-Alpha-2"] ||
-          props.ISO_A2 ||
-          props.ISO_A2_EH ||
-          props.POSTAL ||
-          props.WB_A2 ||
-          props.iso_a2 ||
-          feature.id ||
-          ""
-        ).toLowerCase();
-
-        if (iso2 && iso2 !== "-99") {
-          const found = pool.find((r) => r.id.toLowerCase() === iso2);
-          if (found) return found;
-        }
-
-        // 2. ISO3 match
-        const iso3 = String(
-          props["ISO3166-1-Alpha-3"] ||
-          props.ADM0_A3 ||
-          props.ISO_A3 ||
-          props.ISO_A3_EH ||
-          props.WB_A3 ||
-          props.iso_a3 ||
-          ""
-        ).toLowerCase();
-
-        if (iso3 && iso3 !== "-99") {
-          const foundByIso3 = pool.find((r) => r.id.toLowerCase() === iso3.substring(0, 2));
-          if (foundByIso3) return foundByIso3;
-        }
-
-        // 3. Exact Name matches
-        const propNames = [
-          props.name,
-          props.NAME,
-          props.NAME_LONG,
-          props.ADMIN,
-          props.admin,
-          props.BRK_NAME,
-          props.FORMAL_EN,
-          props.GEOUNIT,
-        ]
-          .filter(Boolean)
-          .map((s) => String(s).toLowerCase().trim());
-
-        if (propNames.length > 0) {
-          const foundByName = pool.find((r) => {
-            const rNameEn = r.name_en.toLowerCase().trim();
-            const rNameKr = r.name_kr.toLowerCase().trim();
-            return propNames.some((pName) => pName === rNameEn || pName === rNameKr);
-          });
-          if (foundByName) return foundByName;
-        }
-
-        return undefined;
+      if (targetId) {
+        const found = pool.find((r) => r.id === targetId);
+        if (found) return found;
       }
+      const foundText = pool.find((r) => {
+        const en = r.name_en.toLowerCase();
+        const kr = r.name_kr;
+        return pNam.includes(kr) || kr.includes(pNam) || pNam.toLowerCase().includes(en);
+      });
+      if (foundText) return foundText;
+    }
 
-      // Korea Mode lookup
-      const name = String(props.name || props.NAME || props.NAME_LONG || "").trim();
-      const fullPool = [...regions, ...ALL_REGIONS];
-
-      if (name) {
-        if (name.includes("광주") || name.includes("전라남도")) {
-          const merged = fullPool.find((r) => r.id === "jeonnam_gwangju");
-          if (merged) return merged;
-          const individual = fullPool.find((r) => r.id === "jeonnam" || r.id === "gwangju");
-          if (individual) return individual;
-        }
-        if (name.includes("충청남도")) {
-          const match = fullPool.find((r) => r.id === "chungnam" || r.name_kr.includes("충청남도"));
-          if (match) return match;
-        }
-        if (name.includes("충청북도")) {
-          const match = fullPool.find((r) => r.id === "chungbuk" || r.name_kr.includes("충청북도"));
-          if (match) return match;
-        }
-        if (name.includes("전라북도") || name.includes("전북")) {
-          const match = fullPool.find((r) => r.id === "jeonbuk" || r.name_kr.includes("전북") || r.name_kr.includes("전라북도"));
-          if (match) return match;
-        }
-        if (name.includes("경상남도")) {
-          const match = fullPool.find((r) => r.id === "gyeongnam" || r.name_kr.includes("경상남도"));
-          if (match) return match;
-        }
-        if (name.includes("경상북도")) {
-          const match = fullPool.find((r) => r.id === "gyeongbuk" || r.name_kr.includes("경상북도"));
-          if (match) return match;
-        }
-        if (name.includes("서울특별시")) return fullPool.find((r) => r.id === "seoul");
-        if (name.includes("부산")) return fullPool.find((r) => r.id === "busan");
-        if (name.includes("대구")) return fullPool.find((r) => r.id === "daegu");
-        if (name.includes("인천")) return fullPool.find((r) => r.id === "incheon");
-        if (name.includes("대전")) return fullPool.find((r) => r.id === "daejeon");
-        if (name.includes("울산")) return fullPool.find((r) => r.id === "ulsan");
-        if (name.includes("세종")) return fullPool.find((r) => r.id === "sejong");
-        if (name.includes("경기")) return fullPool.find((r) => r.id === "gyeonggi");
-        if (name.includes("강원")) return fullPool.find((r) => r.id === "gangwon");
-        if (name.includes("제주")) return fullPool.find((r) => r.id === "jeju");
-      }
-
-      // Direct region_id match
+    if (isWorldMode) {
+      const pool = WORLD_COUNTRIES;
       const iso2 = String(
         props.region_id ||
         props["ISO3166-1-Alpha-2"] ||
@@ -510,181 +366,322 @@ const MapComponent: React.FC<MapProps> = ({
       ).toLowerCase();
 
       if (iso2 && iso2 !== "-99") {
-        const found = fullPool.find((r) => r.id.toLowerCase() === iso2);
+        const found = pool.find((r) => r.id.toLowerCase() === iso2);
         if (found) return found;
       }
 
+      const iso3 = String(
+        props["ISO3166-1-Alpha-3"] ||
+        props.ADM0_A3 ||
+        props.ISO_A3 ||
+        props.ISO_A3_EH ||
+        props.WB_A3 ||
+        props.iso_a3 ||
+        ""
+      ).toLowerCase();
+
+      if (iso3 && iso3 !== "-99") {
+        const foundByIso3 = pool.find((r) => r.id.toLowerCase() === iso3.substring(0, 2));
+        if (foundByIso3) return foundByIso3;
+      }
+
+      const propNames = [
+        props.name,
+        props.NAME,
+        props.NAME_LONG,
+        props.ADMIN,
+        props.admin,
+        props.BRK_NAME,
+        props.FORMAL_EN,
+        props.GEOUNIT,
+      ]
+        .filter(Boolean)
+        .map((s) => String(s).toLowerCase().trim());
+
+      if (propNames.length > 0) {
+        const foundByName = pool.find((r) => {
+          const rNameEn = r.name_en.toLowerCase().trim();
+          const rNameKr = r.name_kr.toLowerCase().trim();
+          return propNames.some((pName) => pName === rNameEn || pName === rNameKr);
+        });
+        if (foundByName) return foundByName;
+      }
+
       return undefined;
-    };
-
-    const drawGeoJson = (data: any) => {
-      geojsonGroup.clearLayers();
-      if (!data) return;
-
-      // Dynamic decoder fallback if UTF8Encoding is present or coordinates are strings
-      let cleanData = data;
-      if (data.UTF8Encoding) {
-        try {
-          cleanData = JSON.parse(JSON.stringify(data));
-          const decodeCoordinate = (coordinate: string, encodeOffsets: [number, number]) => {
-            const result = [];
-            let prevX = encodeOffsets[0];
-            let prevY = encodeOffsets[1];
-            for (let i = 0; i < coordinate.length; i += 2) {
-              let x = coordinate.charCodeAt(i) - 64;
-              let y = coordinate.charCodeAt(i + 1) - 64;
-              x = (x >> 1) ^ (-(x & 1));
-              y = (y >> 1) ^ (-(y & 1));
-              x = prevX + x;
-              y = prevY + y;
-              prevX = x;
-              prevY = y;
-              result.push([x / 1024, y / 1024]);
-            }
-            return result;
-          };
-
-          cleanData.features.forEach((feature: any) => {
-            if (!feature.geometry) return;
-            const { type, coordinates, encodeOffsets } = feature.geometry;
-            if (!coordinates || !encodeOffsets) return;
-            if (type === "Polygon") {
-              feature.geometry.coordinates = coordinates.map((ring: any, i: number) =>
-                typeof ring === "string" ? decodeCoordinate(ring, encodeOffsets[i]) : ring
-              );
-            } else if (type === "MultiPolygon") {
-              feature.geometry.coordinates = coordinates.map((polygon: any, i: number) =>
-                polygon.map((ring: any, j: number) =>
-                  typeof ring === "string" ? decodeCoordinate(ring, encodeOffsets[i][j]) : ring
-                )
-              );
-            }
-          });
-          delete cleanData.UTF8Encoding;
-        } catch (e) {
-          console.error("GeoJSON decoding error:", e);
-        }
-      }
-
-      try {
-        L.geoJSON(cleanData, {
-          filter: (feature) => {
-            const geom = feature?.geometry as any;
-            return Boolean(
-              feature &&
-              geom &&
-              geom.type &&
-              geom.coordinates &&
-              Array.isArray(geom.coordinates) &&
-              geom.coordinates.length > 0
-            );
-          },
-          style: (feature) => {
-            const reg = getRegionForFeature(feature);
-            const regId = reg ? reg.id.toLowerCase() : getFeatureRegionId(feature);
-            const iso2 = String(feature?.properties?.ISO_A2 || feature?.properties?.POSTAL || "").toUpperCase();
-
-            let isVisited = regId ? visitedIds.has(regId) : false;
-            let isActive = regId ? activeId === regId : false;
-
-            if (isActive) {
-              if (isJapanMode) {
-                return { fillColor: "#e11d48", fillOpacity: 0.95, color: "#881337", weight: 2.5 };
-              }
-              if (isUsaMode) {
-                return { fillColor: "#2563eb", fillOpacity: 0.95, color: "#1e3a8a", weight: 2.5 };
-              }
-              if (isChinaMode) {
-                return { fillColor: "#f59e0b", fillOpacity: 0.98, color: "#78350f", weight: 3 };
-              }
-              return isWorldMode
-                ? {
-                    fillColor: "#1e293b",
-                    fillOpacity: 0.95,
-                    color: "#020617",
-                    weight: 2.5,
-                  }
-                : {
-                    fillColor: "#059669",
-                    fillOpacity: 0.9,
-                    color: "#022c22",
-                    weight: 2.5,
-                  };
-            } else if (isVisited) {
-              if (isJapanMode) {
-                return { fillColor: "#f43f5e", fillOpacity: 0.85, color: "#be123c", weight: 1.5 };
-              }
-              if (isUsaMode) {
-                return { fillColor: "#3b82f6", fillOpacity: 0.85, color: "#1d4ed8", weight: 1.5 };
-              }
-              if (isChinaMode) {
-                return { fillColor: "#eab308", fillOpacity: 0.95, color: "#854d0e", weight: 2.5 };
-              }
-              return isWorldMode
-                ? {
-                    fillColor: "#475569",
-                    fillOpacity: 0.85,
-                    color: "#1e293b",
-                    weight: 1.5,
-                  }
-                : {
-                    fillColor: "#22c55e",
-                    fillOpacity: 0.8,
-                    color: "#15803d",
-                    weight: 1.5,
-                  };
-            } else {
-              return {
-                fillColor: isWorldMode || isJapanMode || isUsaMode || isChinaMode ? "#f8fafc" : "#ffffff",
-                fillOpacity: 0.45,
-                color: "#cbd5e1",
-                weight: 1,
-              };
-            }
-          },
-          onEachFeature: (feature, layer) => {
-            const reg = getRegionForFeature(feature);
-            if (reg && !isQuizMode) {
-              layer.on("mouseover", () => setHoveredRegion(reg));
-              layer.on("mouseout", () => setHoveredRegion(null));
-            }
-          },
-        }).addTo(geojsonGroup);
-      } catch (err) {
-        console.error("Error rendering GeoJSON layers:", err);
-      }
-    };
-
-    // Load GeoJSON if not cached for current level or if active/visited state changed
-    const currentGeoStateKey = `${currentLevel}_${activeId}_${visitedRegions.map((r) => r.id).join(",")}`;
-    if (lastDrawnStateRef.current !== currentGeoStateKey || loadedLevelRef.current !== currentLevel) {
-      lastDrawnStateRef.current = currentGeoStateKey;
-
-      if (loadedLevelRef.current !== currentLevel || !geoJsonDataRef.current) {
-        const jsonUrl =
-          currentLevel === "sido"
-            ? "/geojson/provinces.json"
-            : currentLevel === "sigungu"
-            ? "/geojson/municipalities.json"
-            : currentLevel === "japan"
-            ? "/geojson/japan-prefectures.json"
-            : currentLevel === "usa"
-            ? "/geojson/us-states.json"
-            : currentLevel === "china"
-            ? "/geojson/china-provinces.json"
-            : "/geojson/world.json";
-        fetch(jsonUrl)
-          .then((res) => res.json())
-          .then((data) => {
-            geoJsonDataRef.current = data;
-            loadedLevelRef.current = currentLevel;
-            drawGeoJson(data);
-          })
-          .catch((err) => console.error("Failed to load GeoJSON:", err));
-      } else {
-        drawGeoJson(geoJsonDataRef.current);
-      }
     }
+
+    // Korea Mode lookup
+    const name = String(props.name || props.NAME || props.NAME_LONG || "").trim();
+    const fullPool = [...regions, ...ALL_REGIONS];
+
+    if (name) {
+      if (name.includes("광주") || name.includes("전라남도")) {
+        const merged = fullPool.find((r) => r.id === "jeonnam_gwangju");
+        if (merged) return merged;
+        const individual = fullPool.find((r) => r.id === "jeonnam" || r.id === "gwangju");
+        if (individual) return individual;
+      }
+      if (name.includes("충청남도")) {
+        const match = fullPool.find((r) => r.id === "chungnam" || r.name_kr.includes("충청남도"));
+        if (match) return match;
+      }
+      if (name.includes("충청북도")) {
+        const match = fullPool.find((r) => r.id === "chungbuk" || r.name_kr.includes("충청북도"));
+        if (match) return match;
+      }
+      if (name.includes("전라북도") || name.includes("전북")) {
+        const match = fullPool.find((r) => r.id === "jeonbuk" || r.name_kr.includes("전북") || r.name_kr.includes("전라북도"));
+        if (match) return match;
+      }
+      if (name.includes("경상남도")) {
+        const match = fullPool.find((r) => r.id === "gyeongnam" || r.name_kr.includes("경상남도"));
+        if (match) return match;
+      }
+      if (name.includes("경상북도")) {
+        const match = fullPool.find((r) => r.id === "gyeongbuk" || r.name_kr.includes("경상북도"));
+        if (match) return match;
+      }
+      if (name.includes("서울특별시")) return fullPool.find((r) => r.id === "seoul");
+      if (name.includes("부산")) return fullPool.find((r) => r.id === "busan");
+      if (name.includes("대구")) return fullPool.find((r) => r.id === "daegu");
+      if (name.includes("인천")) return fullPool.find((r) => r.id === "incheon");
+      if (name.includes("대전")) return fullPool.find((r) => r.id === "daejeon");
+      if (name.includes("울산")) return fullPool.find((r) => r.id === "ulsan");
+      if (name.includes("세종")) return fullPool.find((r) => r.id === "sejong");
+      if (name.includes("경기")) return fullPool.find((r) => r.id === "gyeonggi");
+      if (name.includes("강원")) return fullPool.find((r) => r.id === "gangwon");
+      if (name.includes("제주")) return fullPool.find((r) => r.id === "jeju");
+    }
+
+    const iso2 = String(
+      props.region_id ||
+      props["ISO3166-1-Alpha-2"] ||
+      props.ISO_A2 ||
+      props.ISO_A2_EH ||
+      props.POSTAL ||
+      props.WB_A2 ||
+      props.iso_a2 ||
+      feature.id ||
+      ""
+    ).toLowerCase();
+
+    if (iso2 && iso2 !== "-99") {
+      const found = fullPool.find((r) => r.id.toLowerCase() === iso2);
+      if (found) return found;
+    }
+
+    return undefined;
+  };
+
+  const getFeatureStyle = (feature: any, currentLevel: string, visitedIds: Set<string>, activeId?: string) => {
+    const reg = getRegionForFeature(feature, currentLevel);
+    const regId = reg ? reg.id.toLowerCase() : getFeatureRegionId(feature);
+
+    const isVisited = regId ? visitedIds.has(regId) : false;
+    const isActive = regId ? activeId === regId : false;
+
+    const isJapanMode = currentLevel === "japan";
+    const isUsaMode = currentLevel === "usa";
+    const isChinaMode = currentLevel === "china";
+    const isWorldMode = currentLevel === "world";
+
+    if (isActive) {
+      if (isJapanMode) {
+        return { fillColor: "#e11d48", fillOpacity: 0.95, color: "#881337", weight: 2.5 };
+      }
+      if (isUsaMode) {
+        return { fillColor: "#2563eb", fillOpacity: 0.95, color: "#1e3a8a", weight: 2.5 };
+      }
+      if (isChinaMode) {
+        return { fillColor: "#f59e0b", fillOpacity: 0.98, color: "#78350f", weight: 3 };
+      }
+      return isWorldMode
+        ? {
+            fillColor: "#1e293b",
+            fillOpacity: 0.95,
+            color: "#020617",
+            weight: 2.5,
+          }
+        : {
+            fillColor: "#059669",
+            fillOpacity: 0.9,
+            color: "#022c22",
+            weight: 2.5,
+          };
+    } else if (isVisited) {
+      if (isJapanMode) {
+        return { fillColor: "#f43f5e", fillOpacity: 0.85, color: "#be123c", weight: 1.5 };
+      }
+      if (isUsaMode) {
+        return { fillColor: "#3b82f6", fillOpacity: 0.85, color: "#1d4ed8", weight: 1.5 };
+      }
+      if (isChinaMode) {
+        return { fillColor: "#eab308", fillOpacity: 0.95, color: "#854d0e", weight: 2.5 };
+      }
+      return isWorldMode
+        ? {
+            fillColor: "#475569",
+            fillOpacity: 0.85,
+            color: "#1e293b",
+            weight: 1.5,
+          }
+        : {
+            fillColor: "#22c55e",
+            fillOpacity: 0.8,
+            color: "#15803d",
+            weight: 1.5,
+          };
+    } else {
+      return {
+        fillColor: isWorldMode || isJapanMode || isUsaMode || isChinaMode ? "#f8fafc" : "#ffffff",
+        fillOpacity: 0.45,
+        color: "#cbd5e1",
+        weight: 1,
+      };
+    }
+  };
+
+  // Function to apply styles to cached GeoJSON layer
+  const applyGeoJsonStyle = () => {
+    if (!geoJsonLayerRef.current) return;
+    const currentLevel = regionLevel || activeRegion?.level || regions[0]?.level || "sido";
+    const visitedIds = new Set(visitedRegions.map((r) => r.id.toLowerCase()));
+    const activeId = activeRegion?.id?.toLowerCase();
+
+    geoJsonLayerRef.current.setStyle((feature: any) =>
+      getFeatureStyle(feature, currentLevel, visitedIds, activeId)
+    );
+  };
+
+  // 3-A. Load and instantiate GeoJSON Layer Group ONCE per region level
+  useEffect(() => {
+    const geojsonGroup = layersRef.current.geojson;
+    if (!geojsonGroup) return;
+
+    const currentLevel = regionLevel || activeRegion?.level || regions[0]?.level || "sido";
+
+    if (loadedLevelRef.current !== currentLevel || !geoJsonLayerRef.current) {
+      loadedLevelRef.current = currentLevel;
+      prevVehiclePosRef.current = null;
+      geojsonGroup.clearLayers();
+      geoJsonLayerRef.current = null;
+
+      const jsonUrl =
+        currentLevel === "sido"
+          ? "/geojson/provinces.json"
+          : currentLevel === "sigungu"
+          ? "/geojson/municipalities.json"
+          : currentLevel === "japan"
+          ? "/geojson/japan-prefectures.json"
+          : currentLevel === "usa"
+          ? "/geojson/us-states.json"
+          : currentLevel === "china"
+          ? "/geojson/china-provinces.json"
+          : "/geojson/world.json";
+
+      fetch(jsonUrl)
+        .then((res) => res.json())
+        .then((data) => {
+          geoJsonDataRef.current = data;
+          let cleanData = data;
+
+          if (data.UTF8Encoding) {
+            try {
+              cleanData = JSON.parse(JSON.stringify(data));
+              const decodeCoordinate = (coordinate: string, encodeOffsets: [number, number]) => {
+                const result = [];
+                let prevX = encodeOffsets[0];
+                let prevY = encodeOffsets[1];
+                for (let i = 0; i < coordinate.length; i += 2) {
+                  let x = coordinate.charCodeAt(i) - 64;
+                  let y = coordinate.charCodeAt(i + 1) - 64;
+                  x = (x >> 1) ^ (-(x & 1));
+                  y = (y >> 1) ^ (-(y & 1));
+                  x = prevX + x;
+                  y = prevY + y;
+                  prevX = x;
+                  prevY = y;
+                  result.push([x / 1024, y / 1024]);
+                }
+                return result;
+              };
+
+              cleanData.features.forEach((feature: any) => {
+                if (!feature.geometry) return;
+                const { type, coordinates, encodeOffsets } = feature.geometry;
+                if (!coordinates || !encodeOffsets) return;
+                if (type === "Polygon") {
+                  feature.geometry.coordinates = coordinates.map((ring: any, i: number) =>
+                    typeof ring === "string" ? decodeCoordinate(ring, encodeOffsets[i]) : ring
+                  );
+                } else if (type === "MultiPolygon") {
+                  feature.geometry.coordinates = coordinates.map((polygon: any, i: number) =>
+                    polygon.map((ring: any, j: number) =>
+                      typeof ring === "string" ? decodeCoordinate(ring, encodeOffsets[i][j]) : ring
+                    )
+                  );
+                }
+              });
+              delete cleanData.UTF8Encoding;
+            } catch (e) {
+              console.error("GeoJSON decoding error:", e);
+            }
+          }
+
+          const visitedIds = new Set(visitedRegions.map((r) => r.id.toLowerCase()));
+          const activeId = activeRegion?.id?.toLowerCase();
+
+          const layer = L.geoJSON(cleanData, {
+            filter: (feature) => {
+              const geom = feature?.geometry as any;
+              return Boolean(
+                feature &&
+                geom &&
+                geom.type &&
+                geom.coordinates &&
+                Array.isArray(geom.coordinates) &&
+                geom.coordinates.length > 0
+              );
+            },
+            style: (feature) => getFeatureStyle(feature, currentLevel, visitedIds, activeId),
+            onEachFeature: (feature, l) => {
+              const reg = getRegionForFeature(feature, currentLevel);
+              if (reg && !isQuizMode) {
+                l.on("mouseover", () => setHoveredRegion(reg));
+                l.on("mouseout", () => setHoveredRegion(null));
+              }
+            },
+          }).addTo(geojsonGroup);
+
+          geoJsonLayerRef.current = layer;
+        })
+        .catch((err) => console.error("Failed to load GeoJSON:", err));
+    }
+  }, [regionLevel, regions, activeRegion?.level]);
+
+  // 3-B. Instantly update GeoJSON polygon colors via setStyle when visited or active region changes
+  useEffect(() => {
+    applyGeoJsonStyle();
+  }, [visitedRegions, activeRegion, isQuizMode]);
+
+  // 3-C. Render stations, connection tracks, and active train avatar marker
+  useEffect(() => {
+    const map = mapRef.current;
+    const markersGroup = layersRef.current.markers;
+    const polylinesGroup = layersRef.current.polylines;
+
+    if (!map || !markersGroup || !polylinesGroup) return;
+
+    // Clear previous drawings for markers & tracks
+    markersGroup.clearLayers();
+    polylinesGroup.clearLayers();
+
+    const currentLevel = regionLevel || activeRegion?.level || regions[0]?.level || "sido";
+
+    const isJapanMode = currentLevel === "japan";
+    const isUsaMode = currentLevel === "usa";
+    const isChinaMode = currentLevel === "china";
+    const isWorldMode = currentLevel === "world";
 
     // -- B. Draw Rail Track Lines --
     const drawnPairs = new Set<string>();

@@ -4,7 +4,7 @@ export const USA_LIST: Region[] = [
   // 1. 수도 (Capital)
   {
     id: "us_washington_dc",
-    name_kr: "워싱턴 D.C.",
+    name_kr: "워싱턴DC",
     name_en: "Washington D.C.",
     level: "usa",
     lat: 38.9072,
@@ -441,7 +441,7 @@ export const USA_LIST: Region[] = [
   },
   {
     id: "us_washington",
-    name_kr: "워싱턴 주",
+    name_kr: "워싱턴주",
     name_en: "Washington",
     level: "usa",
     lat: 47.7511,
