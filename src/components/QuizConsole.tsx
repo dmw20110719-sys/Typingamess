@@ -60,6 +60,7 @@ export const QuizConsole: React.FC<QuizConsoleProps> = ({
   const [status, setStatus] = useState<"idle" | "success" | "error">("idle");
   const [statusText, setStatusText] = useState("");
   const inputRef = useRef<HTMLInputElement>(null);
+  const isTransitioningRef = useRef(false);
 
   // Derive theme color styles based on region level
   const isJapan = regionLevel === "japan" || currentRegion?.level === "japan";
@@ -107,37 +108,87 @@ export const QuizConsole: React.FC<QuizConsoleProps> = ({
     ? "caret-slate-600"
     : "caret-emerald-600";
 
+  const clearInputDom = () => {
+    if (inputRef.current) {
+      inputRef.current.value = "";
+    }
+    setInputVal("");
+  };
+
+  const handleCorrectTransition = () => {
+    if (isTransitioningRef.current) return;
+    isTransitioningRef.current = true;
+
+    playSuccessSound();
+    setStatus("success");
+    setStatusText(`🎉 정답! [${currentRegion?.name_kr || ""}]`);
+
+    // Immediately blur input element to force browser IME composition session to terminate
+    if (inputRef.current) {
+      inputRef.current.blur();
+      inputRef.current.value = "";
+    }
+    setInputVal("");
+
+    // Aggressively wipe leftover IME buffers across microtasks and animation frames
+    clearInputDom();
+    requestAnimationFrame(clearInputDom);
+    setTimeout(clearInputDom, 0);
+    setTimeout(clearInputDom, 30);
+    setTimeout(clearInputDom, 80);
+
+    setTimeout(() => {
+      onSuccess();
+    }, 300);
+  };
+
   useEffect(() => {
     setInputVal("");
     setShowHint(false);
     setShowAnswer(false);
     setStatus("idle");
     setStatusText("");
-    if (inputRef.current) {
-      inputRef.current.focus();
-    }
+    isTransitioningRef.current = false;
+
+    clearInputDom();
+
+    const t1 = setTimeout(() => {
+      clearInputDom();
+      if (inputRef.current) {
+        inputRef.current.value = "";
+        inputRef.current.focus();
+      }
+    }, 50);
+
+    const t2 = setTimeout(() => {
+      clearInputDom();
+      if (inputRef.current && document.activeElement !== inputRef.current) {
+        inputRef.current.focus();
+      }
+    }, 120);
+
+    return () => {
+      clearTimeout(t1);
+      clearTimeout(t2);
+    };
   }, [currentRegion]);
 
   const handleFocus = () => {
     initAudio();
-    if (inputRef.current) {
+    if (!isTransitioningRef.current && inputRef.current) {
       inputRef.current.focus();
     }
   };
 
   const handleSubmit = () => {
+    if (isTransitioningRef.current || status === "success") return;
     if (!currentRegion || !inputVal.trim()) return;
 
     const isCorrect = checkQuizAnswer(inputVal, currentRegion);
 
     if (isCorrect) {
-      playSuccessSound();
-      setStatus("success");
-      setStatusText(`🎉 정답! [${currentRegion?.name_kr || ""}]`);
       onKeystroke(false);
-      setTimeout(() => {
-        onSuccess();
-      }, 400);
+      handleCorrectTransition();
     } else {
       playErrorSound();
       setStatus("error");
@@ -151,18 +202,15 @@ export const QuizConsole: React.FC<QuizConsoleProps> = ({
   };
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (isTransitioningRef.current || status === "success") return;
+
     const val = e.target.value;
     setInputVal(val);
     onKeystroke(false);
 
     // Auto-check on live typing strictly
     if (currentRegion && checkQuizAnswer(val, currentRegion)) {
-      playSuccessSound();
-      setStatus("success");
-      setStatusText(`🎉 정답! [${currentRegion?.name_kr || ""}]`);
-      setTimeout(() => {
-        onSuccess();
-      }, 350);
+      handleCorrectTransition();
     }
   };
 

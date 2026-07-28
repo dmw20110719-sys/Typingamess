@@ -2470,7 +2470,7 @@ export default function App() {
               <div className="flex items-center gap-2">
                 <Compass className="w-5 h-5 text-emerald-600 animate-spin" style={{ animationDuration: "12s" }} />
                 <h3 className="text-sm font-extrabold text-slate-900 font-mono tracking-wider">
-                  운행 예정 노선 코스 목록 (TAB)
+                  {activeMode === "quiz" ? "통과한 퀴즈 코스 기록 (TAB)" : "운행 예정 노선 코스 목록 (TAB)"}
                 </h3>
               </div>
               <button
@@ -2487,6 +2487,7 @@ export default function App() {
                 coursePath.map((r, index) => {
                   const isActive = index === currentIndex;
                   const isVisited = index < currentIndex;
+                  const isQuizHidden = activeMode === "quiz" && !isVisited;
 
                   return (
                     <div
@@ -2504,16 +2505,24 @@ export default function App() {
                           {(index + 1).toString().padStart(2, "0")}
                         </span>
                         <div>
-                          <div className="font-bold">{r.name_kr}</div>
-                          <div className="text-[9px] text-slate-400 font-mono">{r.name_en}</div>
+                          <div className="font-bold">
+                            {isQuizHidden ? "??? (미공개 퀴즈 코스)" : r.name_kr}
+                          </div>
+                          {!isQuizHidden && (
+                            <div className="text-[9px] text-slate-400 font-mono">{r.name_en}</div>
+                          )}
                         </div>
                       </div>
                       <div className="flex items-center gap-2">
-                        <span className="px-2 py-0.5 rounded-full text-[9px] bg-slate-100 border border-slate-200 text-slate-600 font-medium">
-                          {r.region_group}
-                        </span>
+                        {!isQuizHidden && (
+                          <span className="px-2 py-0.5 rounded-full text-[9px] bg-slate-100 border border-slate-200 text-slate-600 font-medium">
+                            {r.region_group}
+                          </span>
+                        )}
                         {isActive && (
-                          <span className="text-[9px] text-emerald-600 font-bold animate-pulse">운행 중</span>
+                          <span className="text-[9px] text-emerald-600 font-bold animate-pulse">
+                            {activeMode === "quiz" ? "퀴즈 푸는 중 ❓" : "운행 중"}
+                          </span>
                         )}
                         {isVisited && <CheckCircle className="w-4 h-4 text-emerald-600" />}
                       </div>
