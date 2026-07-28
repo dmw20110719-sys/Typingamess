@@ -10,6 +10,7 @@ import { Region } from "../types";
 import { WORLD_COUNTRIES } from "../data/worldCountries";
 import { ALL_REGIONS, JAPAN_LIST, USA_LIST, CHINA_LIST } from "../data/regions";
 import { PlayerState } from "../lib/multiplayer";
+import { VehicleType, getMapVehicleMarkerHtml } from "../utils/vehicleAvatars";
 
 interface MapProps {
   regions: Region[];
@@ -23,6 +24,7 @@ interface MapProps {
   myPlayerId?: string;
   coursePath?: Region[];
   regionLevel?: string;
+  vehicleType?: VehicleType;
 }
 
 const MapComponent: React.FC<MapProps> = ({
@@ -37,6 +39,7 @@ const MapComponent: React.FC<MapProps> = ({
   myPlayerId,
   coursePath = [],
   regionLevel,
+  vehicleType = "subway",
 }) => {
   const mapContainerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<L.Map | null>(null);
@@ -54,6 +57,8 @@ const MapComponent: React.FC<MapProps> = ({
   const geoJsonDataRef = useRef<any>(null);
   const loadedLevelRef = useRef<string | null>(null);
   const lastDrawnStateRef = useRef<string>("");
+  const prevVehiclePosRef = useRef<{ lat: number; lng: number } | null>(null);
+  const animFrameRef = useRef<number | null>(null);
 
   // Convert leaflet zoom level to UI zoom percentage (6 -> 100%, 14 -> 650%)
   const zoomPercent = Math.round(((zoomLevel - 6) / (14 - 6)) * 550 + 100);
@@ -258,6 +263,9 @@ const MapComponent: React.FC<MapProps> = ({
 
     // -- A. Render GeoJSON Region Polygons (Passed/Visited Regions Colored Green or Gray) --
     const currentLevel = regionLevel || (regions && regions.length > 0 ? regions[0]?.level : activeRegion?.level) || "sido";
+    if (loadedLevelRef.current !== currentLevel) {
+      prevVehiclePosRef.current = null;
+    }
     const visitedIds = new Set(visitedRegions.map((r) => r.id.toLowerCase()));
     const activeId = activeRegion?.id?.toLowerCase();
 
@@ -819,97 +827,89 @@ const MapComponent: React.FC<MapProps> = ({
 
         L.marker([activeRegion.lat, activeRegion.lng], { icon: quizIcon }).addTo(markersGroup);
       } else {
-        const rippleBgClass = isJapanMode
-          ? "bg-rose-500/30"
-          : isUsaMode
-          ? "bg-blue-500/30"
-          : isChinaMode
-          ? "bg-amber-500/30"
-          : isWorldMode
-          ? "bg-slate-500/30"
-          : "bg-emerald-500/30";
+        const activeVehicle: VehicleType = (vehicleType as VehicleType) || "subway";
+        const { html, iconSize } = getMapVehicleMarkerHtml(
+          activeVehicle,
+          regionLevel,
+          activeRegion.name_kr
+        );
 
-        const shellBgColor = isJapanMode
-          ? "#e11d48"
-          : isUsaMode
-          ? "#2563eb"
-          : isChinaMode
-          ? "#f59e0b"
-          : isWorldMode
-          ? "#64748b"
-          : "#10b981";
-
-        const roofBgColor = isJapanMode
-          ? "#881337"
-          : isUsaMode
-          ? "#1e3a8a"
-          : isChinaMode
-          ? "#b45309"
-          : isWorldMode
-          ? "#334155"
-          : "#065f46";
-
-        const eyeColor = isJapanMode
-          ? "#fecdd3"
-          : isUsaMode
-          ? "#bfdbfe"
-          : isChinaMode
-          ? "#fef08a"
-          : isWorldMode
-          ? "#cbd5e1"
-          : "#34d399";
-
-        const bannerDotClass = isJapanMode
-          ? "bg-rose-400"
-          : isUsaMode
-          ? "bg-blue-400"
-          : isChinaMode
-          ? "bg-amber-400"
-          : isWorldMode
-          ? "bg-slate-400"
-          : "bg-emerald-400";
-
-        const trainIcon = L.divIcon({
-          className: "custom-train-marker-wrapper",
-          html: `
-            <div class="relative flex flex-col items-center justify-center select-none" style="transform: translate(-50%, -85%);">
-              <!-- Ripple wave behind -->
-              <div class="absolute w-12 h-12 ${rippleBgClass} rounded-full animate-ping pointer-events-none" style="animation-duration: 2s; top: 12px;"></div>
-              
-              <!-- Train Body Cabin Container -->
-              <div class="relative shadow-2xl flex flex-col items-center" style="width: 46px; height: 50px;">
-                <!-- Main shell -->
-                <div class="absolute inset-0 border-2 border-white rounded-2xl flex flex-col items-center py-1 shadow-lg" style="background-color: ${shellBgColor};">
-                  <!-- Roof rail connector -->
-                  <div class="w-8 h-1 rounded-t-md -mt-2" style="background-color: ${roofBgColor};"></div>
-                  <!-- Dark Front glass -->
-                  <div class="w-9 h-5 bg-[#0f172a] rounded-lg flex items-center justify-center mt-1 relative">
-                    <!-- Cute eyes -->
-                    <div class="w-1.5 h-1.5 rounded-full mx-1.5" style="background-color: ${eyeColor};"></div>
-                    <div class="w-1.5 h-1.5 rounded-full mx-1.5" style="background-color: ${eyeColor};"></div>
-                    <!-- Sweet smiling mouth -->
-                    <div class="absolute bottom-1 w-2.5 h-1.5 border-b-2 rounded-b-full" style="border-color: ${eyeColor};"></div>
-                  </div>
-                  <!-- Dual front headlights -->
-                  <div class="flex justify-between w-8 px-0.5 mt-2">
-                    <div class="w-2.5 h-2.5 bg-[#fef08a] rounded-full shadow-[0_0_8px_#fef08a] border border-white/20"></div>
-                    <div class="w-2.5 h-2.5 bg-[#fef08a] rounded-full shadow-[0_0_8px_#fef08a] border border-white/20"></div>
-                  </div>
-                </div>
-              </div>
-              
-              <!-- High fidelity Station Name banner below train -->
-              <div class="mt-2.5 bg-slate-900 border border-slate-800 shadow-xl px-4 py-1.5 rounded-full text-[13px] font-black text-white tracking-tight whitespace-nowrap z-50 flex items-center gap-1.5">
-                <span class="w-2 h-2 rounded-full ${bannerDotClass} animate-pulse"></span>
-                <span>${activeRegion.name_kr}</span>
-              </div>
-            </div>
-          `,
-          iconSize: [46, 50],
+        const vehicleIcon = L.divIcon({
+          className: "custom-vehicle-marker-wrapper",
+          html,
+          iconSize,
           iconAnchor: [0, 0],
         });
 
-        L.marker([activeRegion.lat, activeRegion.lng], { icon: trainIcon }).addTo(markersGroup);
+        const targetLat = activeRegion.lat;
+        const targetLng = activeRegion.lng;
+
+        // Reset previous animation if running
+        if (animFrameRef.current !== null) {
+          cancelAnimationFrame(animFrameRef.current);
+          animFrameRef.current = null;
+        }
+
+        const prevPos = prevVehiclePosRef.current;
+        const dist = prevPos
+          ? Math.hypot(targetLat - prevPos.lat, targetLng - prevPos.lng)
+          : 0;
+
+        // If we have a previous position and the new region is distant, smoothly animate along path
+        if (prevPos && dist > 0.001) {
+          const startLat = prevPos.lat;
+          const startLng = prevPos.lng;
+
+          const vehicleMarker = L.marker([startLat, startLng], { icon: vehicleIcon }).addTo(markersGroup);
+
+          // Add class for active walking legs / driving motion
+          setTimeout(() => {
+            const el = vehicleMarker.getElement();
+            if (el) {
+              el.classList.add("is-moving");
+            }
+          }, 0);
+
+          const duration = 1400; // 1.4 seconds path movement
+          const startTime = performance.now();
+
+          const animateStep = (now: number) => {
+            const elapsed = now - startTime;
+            const progress = Math.min(elapsed / duration, 1);
+
+            // Easing function (cubic ease-in-out for smooth acceleration and deceleration)
+            const eased = progress < 0.5
+              ? 4 * progress * progress * progress
+              : 1 - Math.pow(-2 * progress + 2, 3) / 2;
+
+            const curLat = startLat + (targetLat - startLat) * eased;
+            const curLng = startLng + (targetLng - startLng) * eased;
+
+            vehicleMarker.setLatLng([curLat, curLng]);
+            prevVehiclePosRef.current = { lat: curLat, lng: curLng };
+
+            if (mapRef.current && progress < 1) {
+              mapRef.current.panTo([curLat, curLng], { animate: false });
+            }
+
+            if (progress < 1) {
+              animFrameRef.current = requestAnimationFrame(animateStep);
+            } else {
+              vehicleMarker.setLatLng([targetLat, targetLng]);
+              prevVehiclePosRef.current = { lat: targetLat, lng: targetLng };
+              animFrameRef.current = null;
+              const markerEl = vehicleMarker.getElement();
+              if (markerEl) {
+                markerEl.classList.remove("is-moving");
+              }
+            }
+          };
+
+          animFrameRef.current = requestAnimationFrame(animateStep);
+        } else {
+          L.marker([targetLat, targetLng], { icon: vehicleIcon }).addTo(markersGroup);
+          prevVehiclePosRef.current = { lat: targetLat, lng: targetLng };
+        }
       }
     }
 

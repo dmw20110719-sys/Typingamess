@@ -1,19 +1,22 @@
 import React, { useState, useEffect } from "react";
-import { Volume2, VolumeX, X, Sliders, Check, Music, Keyboard } from "lucide-react";
+import { Volume2, VolumeX, X, Sliders, Check, Music, Keyboard, Navigation } from "lucide-react";
 import {
   getSoundVolume,
   setSoundVolume,
   getSoundEnabled,
   setSoundEnabled,
-  playTypingSound,
   playSuccessSound,
 } from "../utils/audio";
+import { VehicleType, VEHICLE_LIST, getVehicleColorScheme } from "../utils/vehicleAvatars";
+import { VehicleCardPreview } from "./VehicleCardPreview";
 
 interface SettingsModalProps {
   isOpen: boolean;
   onClose: () => void;
   advanceMode?: "auto" | "manual";
   onUpdateAdvanceMode?: (mode: "auto" | "manual") => void;
+  vehicleType?: VehicleType;
+  onUpdateVehicleType?: (vehicle: VehicleType) => void;
   regionLevel?: string;
 }
 
@@ -22,10 +25,15 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
   onClose,
   advanceMode = "auto",
   onUpdateAdvanceMode,
+  vehicleType = "subway",
+  onUpdateVehicleType,
   regionLevel,
 }) => {
   const [volume, setVolumeState] = useState<number>(0.5);
   const [enabled, setEnabledState] = useState<boolean>(true);
+
+  // Get active vehicle color scheme matching current region level
+  const vScheme = getVehicleColorScheme(regionLevel);
 
   // Derive theme colors
   const isJapan = regionLevel === "japan";
@@ -109,8 +117,8 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-50 bg-slate-900/50 dark:bg-slate-950/70 backdrop-blur-sm flex items-center justify-center p-4 animate-fade-in">
-      <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl max-w-md w-full p-6 shadow-2xl text-slate-800 dark:text-slate-100">
+    <div className="fixed inset-0 z-50 bg-slate-900/50 dark:bg-slate-950/70 backdrop-blur-sm flex items-center justify-center p-4 animate-fade-in overflow-y-auto">
+      <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl max-w-xl w-full p-5 sm:p-6 shadow-2xl text-slate-800 dark:text-slate-100 my-auto max-h-[90vh] overflow-y-auto">
         {/* Header */}
         <div className="flex items-center justify-between pb-4 border-b border-slate-100 dark:border-slate-800">
           <div className="flex items-center gap-2.5">
@@ -119,7 +127,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
             </div>
             <div>
               <h2 className="text-base font-black text-slate-900 dark:text-white">환경 설정</h2>
-              <p className="text-[11px] text-slate-500 dark:text-slate-400 font-medium">타이핑 제출 방식 및 효과음 설정</p>
+              <p className="text-[11px] text-slate-500 dark:text-slate-400 font-medium">이동수단 캐릭터, 타이핑 제출 방식 및 효과음 설정</p>
             </div>
           </div>
           <button
@@ -131,8 +139,58 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
         </div>
 
         {/* Settings Form */}
-        <div className="py-5 flex flex-col gap-5">
-          {/* Next Region Advance / Completion Mode */}
+        <div className="py-4 flex flex-col gap-5">
+          {/* SECTION 1: VEHICLE SELECTION (이동수단) */}
+          <div className="space-y-2.5">
+            <div className="flex items-center justify-between">
+              <h3 className="text-sm font-black text-slate-900 dark:text-white flex items-center gap-1.5">
+                <Navigation className={`w-4 h-4 ${themePrimaryText}`} />
+                <span>이동수단</span>
+              </h3>
+              <span className="text-[11px] text-slate-400 font-medium">지도 위 운행 캐릭터 선택</span>
+            </div>
+
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
+              {VEHICLE_LIST.map((item) => {
+                const isSelected = vehicleType === item.id;
+                return (
+                  <button
+                    key={item.id}
+                    type="button"
+                    onClick={() => onUpdateVehicleType?.(item.id)}
+                    className={`relative rounded-2xl p-3 flex flex-col items-center justify-between transition-all cursor-pointer border ${
+                      isSelected
+                        ? `bg-white dark:bg-slate-900 border-2 ${themePrimaryBorder} shadow-md ring-2 ring-emerald-500/10`
+                        : "bg-slate-50/80 dark:bg-slate-800/50 border-slate-200 dark:border-slate-700/80 hover:bg-slate-100 dark:hover:bg-slate-800"
+                    }`}
+                  >
+                    {/* Vehicle Preview Avatar */}
+                    <VehicleCardPreview type={item.id} regionLevel={regionLevel} />
+
+                    {/* Title & Subtitle */}
+                    <div className="text-center my-1.5 w-full">
+                      <div className="text-xs font-black text-slate-900 dark:text-white">{item.name}</div>
+                      <div className="text-[10px] text-slate-500 dark:text-slate-400 font-medium leading-tight mt-0.5 line-clamp-2 px-0.5">
+                        {item.subtitle}
+                      </div>
+                    </div>
+
+                    {/* Selected Badge Pill */}
+                    {isSelected ? (
+                      <div className={`mt-1 py-1 px-3 rounded-full text-[10px] font-extrabold flex items-center justify-center gap-1 shadow-xs ${vScheme.tailwindPill}`}>
+                        <Check className="w-3 h-3 stroke-[3]" />
+                        <span>선택됨</span>
+                      </div>
+                    ) : (
+                      <div className="mt-1 h-6" />
+                    )}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
+          {/* SECTION 2: Next Region Advance / Completion Mode */}
           <div className="bg-slate-50 dark:bg-slate-800/60 p-4 rounded-2xl border border-slate-100 dark:border-slate-800 space-y-3">
             <div className="flex items-center gap-2.5">
               <Keyboard className={`w-5 h-5 ${themePrimaryText} shrink-0`} />
@@ -176,7 +234,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
             </p>
           </div>
 
-          {/* Sound On/Off Toggle */}
+          {/* SECTION 3: Sound On/Off Toggle */}
           <div className="flex items-center justify-between bg-slate-50 dark:bg-slate-800/60 p-4 rounded-2xl border border-slate-100 dark:border-slate-800">
             <div className="flex items-center gap-3">
               {enabled && volume > 0 ? (
@@ -204,7 +262,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
             </button>
           </div>
 
-          {/* Volume Slider */}
+          {/* SECTION 4: Volume Slider */}
           <div className="space-y-2">
             <div className="flex items-center justify-between text-xs font-bold text-slate-700 dark:text-slate-300">
               <span className="flex items-center gap-1.5">
@@ -244,7 +302,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
         </div>
 
         {/* Footer */}
-        <div className="pt-4 border-t border-slate-100 dark:border-slate-800 flex justify-end">
+        <div className="pt-3 border-t border-slate-100 dark:border-slate-800 flex justify-end">
           <button
             onClick={onClose}
             className={`py-2.5 px-6 ${themePrimaryBg} text-white font-bold text-xs rounded-xl shadow-md transition-all flex items-center gap-1.5 cursor-pointer`}
@@ -257,3 +315,4 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
     </div>
   );
 };
+

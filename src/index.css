@@ -22,6 +22,119 @@ body {
   }
 }
 
+/* Custom Character Walking & Vehicle Travel Animations */
+@keyframes personIdleWalk {
+  0%, 100% {
+    transform: translateY(0px) rotate(-2deg);
+  }
+  50% {
+    transform: translateY(-3px) rotate(2deg);
+  }
+}
+
+@keyframes personActiveRun {
+  0%, 100% {
+    transform: translateY(0px) rotate(-6deg) scale(1.08);
+  }
+  50% {
+    transform: translateY(-8px) rotate(6deg) scale(1.08);
+  }
+}
+
+@keyframes leftLegWalk {
+  0%, 100% {
+    transform: translateY(0px) rotate(0deg);
+  }
+  50% {
+    transform: translateY(-3px) rotate(-20deg);
+  }
+}
+
+@keyframes rightLegWalk {
+  0%, 100% {
+    transform: translateY(-3px) rotate(20deg);
+  }
+  50% {
+    transform: translateY(0px) rotate(0deg);
+  }
+}
+
+@keyframes leftLegRun {
+  0%, 100% {
+    transform: translateY(0px) rotate(-35deg);
+  }
+  50% {
+    transform: translateY(-6px) rotate(35deg);
+  }
+}
+
+@keyframes rightLegRun {
+  0%, 100% {
+    transform: translateY(-6px) rotate(35deg);
+  }
+  50% {
+    transform: translateY(0px) rotate(-35deg);
+  }
+}
+
+@keyframes vehicleBob {
+  0%, 100% {
+    transform: translateY(0px);
+  }
+  50% {
+    transform: translateY(-3px);
+  }
+}
+
+@keyframes vehicleMovingDrive {
+  0%, 100% {
+    transform: translateY(0px) rotate(-2deg);
+  }
+  25% {
+    transform: translateY(-4px) rotate(2deg);
+  }
+  50% {
+    transform: translateY(-1px) rotate(-2deg);
+  }
+  75% {
+    transform: translateY(-5px) rotate(2deg);
+  }
+}
+
+.person-avatar-body {
+  animation: none;
+}
+
+.is-moving .person-avatar-body {
+  animation: personActiveRun 0.3s ease-in-out infinite !important;
+}
+
+.person-leg-left {
+  animation: none;
+  transform-origin: top center;
+}
+
+.is-moving .person-leg-left {
+  animation: leftLegRun 0.3s ease-in-out infinite !important;
+}
+
+.person-leg-right {
+  animation: none;
+  transform-origin: top center;
+}
+
+.is-moving .person-leg-right {
+  animation: rightLegRun 0.3s ease-in-out infinite !important;
+}
+
+.vehicle-avatar-body {
+  animation: none;
+}
+
+.is-moving .vehicle-avatar-body {
+  animation: vehicleMovingDrive 0.28s linear infinite !important;
+}
+
 @keyframes fadeIn {
   from {
     opacity: 0;

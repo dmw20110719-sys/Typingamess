@@ -30,8 +30,11 @@ import {
   MessageSquare,
   Sparkles,
   Crown,
-  LogOut
+  LogOut,
+  Download
 } from "lucide-react";
+import { toPng } from "html-to-image";
+import { ResultCardExport } from "./components/ResultCardExport";
 import { REGIONS, SIDO_LIST, SIGUNGU_LIST, WORLD_LIST, JAPAN_LIST, USA_LIST, CHINA_LIST, ALL_REGIONS } from "./data/regions";
 import { Region, GameSettings, PlayStats, QuizQuestion, PlayMode } from "./types";
 import { Map } from "./components/Map";
@@ -55,11 +58,23 @@ import chinaMapBg from "./assets/images/china_clean_map_bg_1785149923067.jpg";
 import cleanWorldMapBg from "./assets/images/world_pure_gray_map_1784975622332.jpg";
 import { submitScoreToLeaderboard } from "./lib/supabase";
 import { playSuccessSound, playCompleteSound, initAudio } from "./utils/audio";
+import { VehicleType } from "./utils/vehicleAvatars";
 
 export default function App() {
   // Navigation states
   const [activeMode, setActiveMode] = useState<PlayMode | "multiplayer" | null>(null);
   const [gameState, setGameState] = useState<"home" | "setup" | "countdown" | "playing" | "results">("home");
+
+  // Vehicle selection state
+  const [vehicleType, setVehicleType] = useState<VehicleType>(() => {
+    const saved = localStorage.getItem("typetrip_vehicle") as VehicleType;
+    return saved && ["subway", "person", "car", "plane"].includes(saved) ? saved : "person";
+  });
+
+  const handleUpdateVehicleType = (type: VehicleType) => {
+    setVehicleType(type);
+    localStorage.setItem("typetrip_vehicle", type);
+  };
 
   // Screenshot Theme / Tab / Scope states
   const [homeTab, setHomeTab] = useState<"single" | "multiplayer">("single");
@@ -390,6 +405,76 @@ export default function App() {
 
     setCountdown(3);
     setGameState("countdown");
+  };
+
+  const handleReplaySameCourse = () => {
+    initAudio();
+    if (!coursePath || coursePath.length === 0) {
+      handleStartSetup();
+      return;
+    }
+
+    setCurrentIndex(0);
+    setVisitedRegions([coursePath[0]]);
+    setCourseHistory([coursePath[0].id]);
+    setGameTime(0);
+    setTotalKeystrokes(0);
+    setErrorCount(0);
+
+    prevStationsKeystrokesRef.current = 0;
+    prevStationsErrorsRef.current = 0;
+    totalKeystrokesRef.current = 0;
+    errorCountRef.current = 0;
+    gameTimeRef.current = 0;
+    lastKeystrokeTimeRef.current = Date.now();
+
+    setStats({
+      cpm: 0,
+      accuracy: 1,
+      elapsedTime: 0,
+      combo: 0,
+      maxCombo: 0,
+      visitedCount: 1,
+      completed: false,
+    });
+
+    fetchRegionTrivia(coursePath[0]);
+    setCountdown(3);
+    setGameState("countdown");
+  };
+
+  const [isSavingCard, setIsSavingCard] = useState<boolean>(false);
+
+  const handleSaveResultCard = async () => {
+    setIsSavingCard(true);
+    try {
+      const node = document.getElementById("result-card-export-target");
+      if (!node) {
+        alert("결과 카드를 찾을 수 없습니다.");
+        setIsSavingCard(false);
+        return;
+      }
+
+      const dataUrl = await toPng(node, {
+        quality: 0.98,
+        pixelRatio: 2,
+        cacheBust: true,
+      });
+
+      const link = document.createElement("a");
+      link.download = `MAP_TYPING_${settings.level || homeScope}_${stats.cpm}CPM.png`;
+      link.href = dataUrl;
+      link.click();
+
+      setAlertText("📸 결과 카드가 이미지(PNG)로 저장되었습니다!");
+      setIsAlertActive(true);
+      setTimeout(() => setIsAlertActive(false), 3000);
+    } catch (err) {
+      console.error("Failed to export result card image", err);
+      alert("결과 카드 이미지 저장 중 오류가 발생했습니다.");
+    } finally {
+      setIsSavingCard(false);
+    }
   };
 
   const handleStartRankingChallenge = () => {
@@ -2046,6 +2131,7 @@ export default function App() {
                 myPlayerId={multiplayerRoom?.getMyPlayerId()}
                 coursePath={coursePath}
                 regionLevel={settings.level || homeScope}
+                vehicleType={vehicleType}
               />
 
               {activeMode !== "multiplayer" && (
@@ -2173,6 +2259,7 @@ export default function App() {
                 myPlayerId={multiplayerRoom?.getMyPlayerId()}
                 coursePath={coursePath}
                 regionLevel={settings.level || homeScope}
+                vehicleType={vehicleType}
               />
             </div>
 
@@ -2330,32 +2417,38 @@ export default function App() {
                 )}
 
                 {/* Action Buttons List */}
-                <div className="w-full flex flex-col gap-3">
+                <div className="w-full flex flex-col gap-2.5">
+                  {/* Primary: Replay Exact Same Course */}
+                  <button
+                    onClick={handleReplaySameCourse}
+                    className="w-full py-3.5 bg-emerald-600 hover:bg-emerald-500 text-white font-black text-base rounded-2xl shadow-md transition-all flex items-center justify-center gap-2 cursor-pointer"
+                  >
+                    <RefreshCw className="w-5 h-5" />
+                    <span>같은 코스 똑같이 재도전</span>
+                  </button>
+
+                  {/* Share Result Text */}
                   <button
                     onClick={() => {
                       const text = `[MAP TYPING] ${settings.level === "sido" ? "대한민국 전체" : "타이핑 여행"} ${coursePath.length}곳 완주!\n타자 속도: ${stats.cpm}타/분, 정확도: ${Math.round(stats.accuracy * 100)}%\n여행시간: ${formatTravelTime(stats.elapsedTime)}`;
                       navigator.clipboard.writeText(text);
-                      alert("결과가 클립보드에 복사되었습니다!");
+                      setAlertText("📋 결과가 클립보드에 복사되었습니다!");
+                      setIsAlertActive(true);
+                      setTimeout(() => setIsAlertActive(false), 3000);
                     }}
-                    className="w-full py-4 bg-slate-900 hover:bg-slate-800 text-white font-black text-base rounded-2xl shadow-md transition-all flex items-center justify-center gap-2 cursor-pointer"
+                    className="w-full py-3 bg-slate-900 hover:bg-slate-800 text-white font-bold text-sm rounded-xl shadow-xs transition-all flex items-center justify-center gap-2 cursor-pointer"
                   >
-                    <span>결과 공유하기 ↗</span>
+                    <span>결과 텍스트 복사 ↗</span>
                   </button>
 
+                  {/* Save Result Card Image Button */}
                   <button
-                    onClick={() => {
-                      alert("결과 카드가 저장되었습니다.");
-                    }}
-                    className="text-slate-500 hover:text-slate-800 text-xs font-bold transition-colors cursor-pointer py-1"
+                    onClick={handleSaveResultCard}
+                    disabled={isSavingCard}
+                    className="w-full py-3 bg-emerald-50 hover:bg-emerald-100 border border-emerald-300 text-emerald-800 font-bold text-sm rounded-xl transition-all cursor-pointer flex items-center justify-center gap-2 disabled:opacity-50 shadow-xs"
                   >
-                    결과 카드 저장
-                  </button>
-
-                  <button
-                    onClick={handleStartSetup}
-                    className="w-full py-4 bg-white hover:bg-slate-50 border border-slate-200 text-slate-800 font-black text-base rounded-2xl shadow-sm transition-all cursor-pointer"
-                  >
-                    같은 지역 다시 여행
+                    <Download className="w-4 h-4 text-emerald-700" />
+                    <span>{isSavingCard ? "이미지 생성 중..." : "결과 카드 이미지 저장 (PNG)"}</span>
                   </button>
 
                   <button
@@ -2363,7 +2456,7 @@ export default function App() {
                       setGameState("home");
                       setActiveMode(null);
                     }}
-                    className="text-slate-500 hover:text-slate-800 text-xs font-bold transition-colors cursor-pointer py-1 underline"
+                    className="text-slate-500 hover:text-slate-800 text-xs font-bold transition-colors cursor-pointer py-1 underline mt-1"
                   >
                     다른 지역 선택하기
                   </button>
@@ -2441,7 +2534,7 @@ export default function App() {
       )}
 
       {/* 4. FOOTER CREDITS (Shown on home / setup / idle screens) */}
-      {gameState !== "playing" && (
+      {(gameState === "home" || gameState === "setup") && (
         <Footer
           onOpenAbout={() => setShowAboutModal(true)}
           onOpenGuide={() => setShowGuideModal(true)}
@@ -2457,12 +2550,14 @@ export default function App() {
         defaultMode={settings.level}
       />
 
-      {/* 6. SETTINGS MODAL (Sound & Volume controls) */}
+      {/* 6. SETTINGS MODAL (Sound & Volume & Vehicle controls) */}
       <SettingsModal
         isOpen={showSettingsModal}
         onClose={() => setShowSettingsModal(false)}
         advanceMode={settings.advanceMode || "auto"}
         onUpdateAdvanceMode={(mode) => setSettings((prev) => ({ ...prev, advanceMode: mode }))}
+        vehicleType={vehicleType}
+        onUpdateVehicleType={handleUpdateVehicleType}
         regionLevel={settings.level || homeScope}
       />
 
@@ -2490,6 +2585,19 @@ export default function App() {
         onClose={() => setShowAboutModal(false)}
         logoImg={mapTypingLogo}
       />
+
+      {/* 10. HIDDEN RESULT CARD FOR PNG IMAGE EXPORT */}
+      <div className="fixed -left-[9999px] -top-[9999px] pointer-events-none opacity-0">
+        <ResultCardExport
+          coursePath={coursePath}
+          level={settings.level || homeScope}
+          cpm={stats.cpm}
+          elapsedTime={stats.elapsedTime}
+          accuracy={stats.accuracy}
+          maxCombo={stats.maxCombo}
+          formatTravelTime={formatTravelTime}
+        />
+      </div>
     </div>
   );
 }
